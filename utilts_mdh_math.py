@@ -1,18 +1,6 @@
 import numpy as np
 
-a = np.array([0,0,0,0.0825,-0.0825,0.0,0.088,0.0])
-alpha = np.array([0,-np.pi/2,np.pi/2,np.pi/2,-np.pi/2,np.pi/2,np.pi/2,0.0])
-d = np.array([0.333,0.0,0.316,0.0,0.384,0.0,0.0,0.107])
-theta = np.zeros(8)   # 初始所有关节角
 
-def get_ee_position(q):
-    mdh_i = np.vstack([a, alpha, d, theta+np.append(q,0)]).T
-    T = direct_kinematics_mdh(mdh_i)
-    return T[0:3,3]
-
-def get_jacobian(q):
-    mdh_i = np.vstack([a, alpha, d, theta+np.append(q,0)]).T
-    return jacobian_mdh(mdh_i)[:,0:7]
 
 # -------------------------------------------
 # MDH 单步变换：a, alpha, d, theta

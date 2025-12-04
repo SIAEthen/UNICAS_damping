@@ -1,39 +1,54 @@
-# Python code to run a Franka-like 7-DOF kinematics simulation and compare different Jacobian-inverse methods.
-# The Jacobian is computed numerically (finite differences) from the forward kinematics function.
-# Methods compared:
-#  - Moore-Penrose pseudoinverse (pinv)
-#  - Damped Least Squares (DLS)
-#  - Jacobian Transpose scaled (JT)
-#  - DLS + nullspace projection to maintain a preferred posture (DLS-NS)
-#
-# Outputs:
-#  - Plots of end-effector tracking error for each method
-#  - Joint trajectories (plotted)
-#  - Dataframe of joint trajectories saved and displayed for the user
-#
-# Note: The kinematic parameters used here are approximate and chosen to give a plausible 7-DOF manipulator
-# behavior similar in shape to research arms. If you have a specific URDF or exact DH parameters for Franka Emika Panda,
-# you can replace the `forward_kinematics` implementation accordingly.
-#
-# This cell will run the simulation and produce plots.
-
 import numpy as np
 import matplotlib.pyplot as plt
 from utilts_mdh_math import *
+from utilts_uvms_math import *
+
 from math import sin, cos
+a = np.array([0,0,0,0.0825,-0.0825,0.0,0.088,0.0])
+alpha = np.array([0,-np.pi/2,np.pi/2,np.pi/2,-np.pi/2,np.pi/2,np.pi/2,0.0])
+d = np.array([0.333,0.0,0.316,0.0,0.384,0.0,0.0,0.107])
+theta = np.zeros(8)   # 初始所有关节角
+
+def get_ee_state(q):
+    mdh_i = np.vstack([a, alpha, d, theta+np.append(q,0)]).T
+    T = direct_kinematics_mdh(mdh_i)
+    R = T[0:3,0:3]
+    p = T[0:3,3]
+    q = Rot2Quat(R)
+    return np.hstack((p,q))
+
+def get_error(eta_d,eta):
+    res = np.zeros(6)
+    res[0:3] = eta_d[0:3] - eta[0:3]
+    q_d = eta_d[3:7]
+    q   = eta[3:7]
+    res[3:6] = quat_err(q_d,q)
+    return res
+
+def get_jacobian(q):
+    mdh_i = np.vstack([a, alpha, d, theta+np.append(q,0)]).T
+    return jacobian_mdh(mdh_i)[:,0:7]
 
 # ---- Trajectory generation (end effector) ----
 def circle_trajectory(center=np.array([0.4, 0.0, 0.4]), radius=0.05, duration=8.0, dt=0.02):
     t = np.arange(0, duration, dt)
-    traj = []
+    pos = []
     for ti in t:
         theta = 2*np.pi * ti / duration
-        pos = center + np.array([radius*np.cos(theta), radius*np.sin(theta), 0.0])
-        traj.append(pos)
-    traj = np.array(traj)
+        pos_i = center + np.array([radius*np.cos(theta), radius*np.sin(theta), 0.0])
+        pos.append(pos_i)
+    pos = np.array(pos)
     # velocities by finite differences (simple)
-    vel = np.vstack([np.zeros(3), (traj[1:] - traj[:-1]) / dt])
-    return t, traj, vel
+    vel_lin = np.vstack([np.zeros(3), (pos[1:] - pos[:-1]) / dt])
+
+    orientation = []
+    for ti in t:
+        orie_i = np.array([1,0,0,0]) # always x y z w sequence
+        orientation.append(orie_i)
+    orientation = np.array(orientation)
+    vel_ang = 0*orientation[:,0:3]
+
+    return t, np.hstack((pos,orientation)), np.hstack((vel_lin,vel_ang))
 
 # ---- Resolved-rate control simulation ----
 def simulate(method_name, q0, ee_traj, ee_vel, dt=0.02, qdot_limit=2.5, dls_lambda=0.05, null_target=None):
@@ -45,8 +60,8 @@ def simulate(method_name, q0, ee_traj, ee_vel, dt=0.02, qdot_limit=2.5, dls_lamb
     for k in range(1, n_steps):
         pd = ee_traj[k]
         vd = ee_vel[k]
-        p = get_ee_position(q)
-        err = pd - p
+        eta = get_ee_state(q)
+        err = get_error(pd,eta)
         ee_errs[k] = np.linalg.norm(err)
         J = get_jacobian(q)
         if method_name == 'pinv':
@@ -83,7 +98,7 @@ dt = 0.02
 t, ee_traj, ee_vel = circle_trajectory(center=np.array([0.45, -0.05, 0.35]), radius=0.06, duration=10.0, dt=dt)
 n_steps = t.shape[0]
 q0 = np.array([0.0,   -0.7826,   0.0,   -2.3550,   0.0,    1.5768,    0.7922-0.7922])  # initial joint posture (home)
-methods = ['pinv','dls','transpose','dls-ns']
+methods = ['pinv','dls']
 results = {}
 for method in methods:
     qs, errs = simulate(method, q0, ee_traj, ee_vel, dt=dt, dls_lambda=0.08, null_target=0.1*np.ones(7))
