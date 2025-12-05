@@ -1,9 +1,6 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from utilts_mdh_math import *
 from utilts_uvms_math import *
 from utilts_data_logger_plotter import *
-from math import sin, cos
 from utilts_lambda_math import *
 
 
