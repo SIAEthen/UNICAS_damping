@@ -384,12 +384,8 @@ def Rot2Quat(R):
         y = (r12 + r21) / S
         z = 0.25 * S
     # Normalize
-    norm = sqrt(x*x + y*y + z*z + w*w)
-    x /= norm
-    y /= norm
-    z /= norm
-    w /= norm
-    return np.array([x, y, z, w])
+    q  = np.array([x, y, z, w])
+    return check_quaternion(q)
 
 
 def Rpy2Quat(rpy):
@@ -399,12 +395,22 @@ def Rpy2Quat(rpy):
 
 
 # input array type quaternion, x y z w sequence
-def check_quaternion(q):
+def check_quaternion(q,eps_w = 1e-6):
     assert isinstance(q, np.ndarray), "Input must be a NumPy array"
-    if q[3] < 0:
-        return -1.0 * q
-    else:
+    x,y,z,w = q
+    norm = sqrt(x * x + y * y + z * z + w * w)
+    x /= norm
+    y /= norm
+    z /= norm
+    w /= norm
+    q = np.array([x, y, z, w])
+    if abs(q[3]<eps_w):
         return q
+    else:
+        if q[3] < 0:
+            return -1.0 * q
+        else:
+            return q
 
 # quaternions always x y z w
 def quat_mult(q1, q2):
