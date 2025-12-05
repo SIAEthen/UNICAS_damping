@@ -7,3 +7,6 @@ numpy                     2.3.5
 
 pandas                    2.3.3   
 
+# running
+
+run sim_damping.py in yor env
